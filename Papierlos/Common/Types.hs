@@ -30,7 +30,8 @@ data GeneralConfig = GeneralConfig {
   consumptionDir :: String ,
   tmpDir :: String , 
   storageDir :: String ,
-  database :: String
+  database :: String ,
+  timeout :: Int
 } deriving Show
 
 
@@ -43,14 +44,17 @@ data Document = Document {
   date :: UTCTime 
 } deriving Show
 
-instance FromRow Document where
-  fromRow = Document
-    <$> field 
-    <*> field
-    <*> field 
-    <*> field 
-    <*> field
-    <*> field
+getTesseract = asks $ tesseract . programs :: PapierM String
+getPdfimages = asks $ pdfimages . programs :: PapierM String
+getUnpaper = asks $ unpaper . programs :: PapierM String
+getMagick = asks $ magick . programs :: PapierM String
+getPdftoppm = asks $ pdftoppm . programs :: PapierM String
 
-instance ToRow Document where
-  toRow (Document a b c d e f) = toRow (a, b, c, d, e, f)
+getLanguage = asks $ language . general :: PapierM String
+getPsm = asks $ psm . general :: PapierM Int
+getTesseractEngine = asks $ tesseractEngine . general  :: PapierM Int
+getConsumptionDir = asks $ consumptionDir . general :: PapierM String
+getTmpDir = asks $ tmpDir . general :: PapierM String
+getStorageDir = asks $ storageDir . general :: PapierM String
+getDatabase = asks $ database . general :: PapierM String
+getTimeout = asks $ timeout . general :: PapierM Int

@@ -6,8 +6,16 @@ import Data.String
 import Data.Ini.Config
 import Data.Text (Text)
 import Control.Applicative
+import System.IO.Unsafe (unsafePerformIO)
+import System.Directory
+import System.FilePath
 
 import Papierlos.Common.Types 
+
+-- TODO: do this the right way
+{-# NOINLINE home #-}
+home :: FilePath
+home = unsafePerformIO getHomeDirectory 
 
 parseConfig :: Text -> Either String Config
 parseConfig = flip parseIniFile configP
@@ -28,8 +36,9 @@ configP = do
     <*> (fieldOf "engine" number <|> pure 3)
     <*> fieldOf "consumptionDir" filepath
     <*> (fieldOf "tmpDir" filepath <|> pure "/var/tmp")
-    <*> (fieldOf "storageDir" filepath <|> pure "/media")
-    <*> (fieldOf "database" filepath <|> pure "/home/tobr/media/papierlos.db")
+    <*> (fieldOf "storageDir" filepath <|> pure (home </> ".papierlos/files"))
+    <*> (fieldOf "database" filepath <|> pure  (home </> ".papierlos/papierlos.db"))
+    <*> (fieldOf "consumptionTimeout" number <|> pure 20000000)
   pure $ Config programsCf generalCf
 
 -- TODO

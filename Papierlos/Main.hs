@@ -15,10 +15,5 @@ main = do
   parseConfig <$> T.readFile "/etc/papierlos.conf" >>= \case 
     Left err     -> hPutStrLn stderr err 
     Right config -> do 
-      runReaderT (do 
-        consume
-        undefined
-        files <- convertToPGM "/home/tobr/projectTest/Scan.pdf"
-        out <- runTesseract files
-        liftIO $ print out) config
-      print config --startConsume config 
+      startConsume config
+      undefined
