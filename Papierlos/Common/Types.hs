@@ -31,7 +31,9 @@ data GeneralConfig = GeneralConfig {
   tmpDir :: String , 
   storageDir :: String ,
   database :: String ,
-  timeout :: Int
+  timeout :: Int ,
+  prefix :: String ,
+  dpi :: Int
 } deriving Show
 
 
@@ -58,3 +60,5 @@ getTmpDir = asks $ tmpDir . general :: PapierM String
 getStorageDir = asks $ storageDir . general :: PapierM String
 getDatabase = asks $ database . general :: PapierM String
 getTimeout = asks $ timeout . general :: PapierM Int
+getPrefix = asks $ prefix . general :: PapierM String
+getDpi = asks $ dpi . general :: PapierM Int

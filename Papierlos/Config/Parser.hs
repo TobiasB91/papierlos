@@ -39,6 +39,8 @@ configP = do
     <*> (fieldOf "storageDir" filepath <|> pure (home </> ".papierlos/files"))
     <*> (fieldOf "database" filepath <|> pure  (home </> ".papierlos/papierlos.db"))
     <*> (fieldOf "consumptionTimeout" number <|> pure 20000000)
+    <*> (fieldOf "filePrefix" string <|> pure "papierlos")
+    <*> (fieldOf "dpi" number <|> pure 300)
   pure $ Config programsCf generalCf
 
 -- TODO

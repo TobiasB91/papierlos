@@ -66,13 +66,16 @@ convertToPGM pdfPath = do
   pdftoppm <- getPdftoppm 
   magick   <- getMagick 
   tmpDir   <- getTmpDir 
-  let imgName = "papierlos"
+  imgName  <- getPrefix
+  dpi      <- show <$> getDpi
   liftIO $ do 
-    Exit c <- command [Cwd tmpDir] pdftoppm ["-gray", "-forcenum" , pdfPath, imgName ] 
+    Exit c <- command [Cwd tmpDir] pdftoppm 
+      ["-gray", "-forcenum" , "-r", dpi, pdfPath, imgName ] 
     (Exit c', Stdout files) <- command [Cwd tmpDir, Shell] "ls" [ imgName ++ "-*" ]
     let out = words files
     cs <- forM out $ \rawPgm -> do
-      Exit c'' <- command [Cwd tmpDir] "unpaper" [ "-v", "-overwrite", rawPgm , rawPgm ]
+      Exit c'' <- command [Cwd tmpDir] "unpaper" 
+        [ "-v", "--overwrite", "-t", "pgm", "--dpi", dpi, rawPgm , rawPgm ]
       pure c'' 
     if all (==ExitSuccess) (c:c':cs) then 
       pure $ map (tmpDir </>) out 
@@ -82,13 +85,14 @@ runTesseract :: [FilePath] -> PapierM T.Text
 runTesseract pgmFiles = do
   tesseract <- getTesseract 
   language  <- getLanguage
+  tmpDir    <- getTmpDir 
   psm       <- show <$> getPsm 
   engine    <- show <$> getTesseractEngine 
-  tmpDir    <- getTmpDir 
+  dpi       <- show <$> getDpi
   liftIO $ do
     res <- forM pgmFiles $ \file -> do 
       Exit c <- command [ Cwd tmpDir ] tesseract 
-        [ "-l", language, "--oem", engine, "--psm", psm, file, file ]
+        [ "-l", language, "--oem", engine, "--psm", psm, "--dpi", dpi, file, file ]
       text <- T.readFile $ file ++ ".txt"
       Exit c' <- command [Cwd tmpDir , Shell] "rm" [file ++ "*"] 
       pure (c, text)
