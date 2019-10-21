@@ -19,7 +19,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 startConsume :: Config -> IO ()
-startConsume = runReaderT consume
+startConsume = flip runPapierM consume
 
 consume :: PapierM () 
 consume =
@@ -37,7 +37,7 @@ consume =
 movePdf :: FilePath -> PapierM FilePath 
 movePdf pdf = do
   storageDir <- getStorageDir
-  num        <- show . (+1) <$> countDocuments
+  num        <- show . (+1) <$> maxDocumentsId
   let
     newName = takeBaseName pdf ++ num ++ takeExtension pdf
     newPath = storageDir </> newName 
@@ -49,7 +49,7 @@ createThumbnail :: FilePath -> PapierM FilePath
 createThumbnail pdfPath = do
   storageDir <- getStorageDir
   pdfimages  <- getPdfimages
-  num        <- show . (+1) <$> countDocuments
+  num        <- show . (+1) <$> maxDocumentsId
   liftIO $ do 
     let outName = "thumbnail" ++ num 
     Exit c <- command [ Cwd storageDir ] pdfimages 

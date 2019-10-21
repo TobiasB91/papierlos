@@ -6,14 +6,18 @@ import qualified Data.Text.IO as T
 
 import Papierlos.Config.Parser
 import Papierlos.OCR.Consume
+import Papierlos.API.Server
 
 import Control.Monad.Reader
+import Control.Concurrent
 
 main :: IO ()
-main = do 
-  putStrLn "Hello, Haskell!"
+main = 
   parseConfig <$> T.readFile "/etc/papierlos.conf" >>= \case 
     Left err     -> hPutStrLn stderr err 
     Right config -> do 
-      startConsume config
+      forkIO $ forever $ do  
+        startConsume config 
+        threadDelay 1000000
+      startServer config
       undefined

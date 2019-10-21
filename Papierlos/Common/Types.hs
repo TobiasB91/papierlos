@@ -1,14 +1,17 @@
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Papierlos.Common.Types where
 
+import GHC.Generics
 import Control.Monad.Reader
 import Data.Time.Clock 
 import qualified Data.Text as T
-import Database.SQLite.Simple
-import Database.SQLite.Simple.FromRow
+import Data.ByteString
 
 type PapierM = ReaderT Config IO
+
+runPapierM :: Config -> PapierM a -> IO a 
+runPapierM = flip runReaderT 
 
 data Config = Config {
   programs :: ProgramsConfig ,
@@ -44,7 +47,17 @@ data Document = Document {
   filePath :: String ,
   thumbnail :: String ,
   date :: UTCTime 
-} deriving Show
+} deriving Show 
+
+-- used to represent documents through the REST API
+data DocumentJSON = DocumentJSON { 
+  document_id :: Int ,
+  document_name :: String ,
+  document_content :: T.Text ,
+  document_pdf :: ByteString ,
+  document_thumbnail :: ByteString ,
+  document_date :: UTCTime 
+} deriving (Generic, Show)
 
 getTesseract = asks $ tesseract . programs :: PapierM String
 getPdfimages = asks $ pdfimages . programs :: PapierM String
