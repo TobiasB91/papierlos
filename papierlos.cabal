@@ -52,7 +52,7 @@ library
                     ,  directory
                     ,  safe
                     ,  command
-                    ,  sqlite-simple
+                    ,  sqlite-simple == 0.4.16.0
                     ,  time
                     ,  aeson
                     ,  scotty

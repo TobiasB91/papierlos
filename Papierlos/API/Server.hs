@@ -14,7 +14,7 @@ import Data.Aeson hiding (json)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL (fromStrict)
 import qualified Data.Text.Encoding as T
-import Network.Wai.Middleware.Static
+import Network.Wai.Middleware.Static hiding (defaultOptions)
 
 instance ToJSON DocumentJSON where
   toEncoding = genericToEncoding defaultOptions
@@ -55,3 +55,6 @@ startServer cf = scotty 3000 $ do
     json jDoc 
 
   get "/documents/search/:query" undefined
+
+  post "/tags/create" $ 
+    params >>= liftIO . print >> redirect "/" 
