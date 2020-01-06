@@ -1,59 +1,68 @@
-{-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE OverloadedStrings, OverloadedLabels, LambdaCase #-}
 module Papierlos.Common.Database where
 
+import Database.Selda
 import Papierlos.Common.Types
 import qualified Data.Text as T
-import Database.SQLite.Simple
-import Database.SQLite.Simple.FromRow
-import System.Command
+import qualified Data.Text.Encoding as T
+import Data.Maybe (listToMaybe)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64 as B64
 
 import Control.Monad.Reader
 
-instance FromRow Document where
-  fromRow = Document 
-    <$> field <*> field  
-    <*> field <*> field
-    <*> field <*> (read <$> field)
+documents :: Table Document
+documents = table "documents" [ #document_id :- autoPrimary ]
 
-instance ToRow Document where
-  toRow (Document a b c d e f) = toRow (a, b, c, d, e, f)
+createDocumentsTable :: PapierM ()
+createDocumentsTable = tryCreateTable documents
 
-queryDatabase :: (Connection -> IO a) -> PapierM a
-queryDatabase cb = getDatabase >>= \db -> liftIO $ withConnection db cb
-
-insertDocument :: Document -> PapierM ()
-insertDocument doc = queryDatabase $ \conn -> 
-  execute conn "INSERT INTO documents VALUES (?,?,?,?,?,?)" doc
+insertDocument :: Document -> PapierM Int 
+insertDocument = fmap fromId . insertWithPK documents . pure 
 
 countDocuments :: PapierM Int
-countDocuments = queryDatabase $ \conn -> do
-  [Only count] <- query_ conn "SELECT COUNT(*) FROM documents" :: IO [Only Int]
-  pure count 
+countDocuments = head <$> query countDocs where
+  countDocs = aggregate $
+    select documents >>= \docs -> pure $ count (docs ! #document_id)
 
-maxDocumentsId :: PapierM Int
-maxDocumentsId = queryDatabase $ \conn -> do
-  [Only maxId] <- query_ conn "SELECT MAX(id) FROM documents" :: IO [Only Int]
-  pure maxId 
+updateDocumentName :: Int -> T.Text -> PapierM ()
+updateDocumentName = updateDocumentById #document_name 
 
-deleteDocumentById :: Int -> PapierM ()
-deleteDocumentById i = queryDatabase $ \conn -> do
-  xs <- query conn "SELECT thumbnail , path FROM documents WHERE id = ?" 
-    (Only i) :: IO [(String, String)]
-  execute conn "DELETE FROM documents WHERE id = ?" (Only i)
-  unless (null xs) $ do
-    let [(thumbnail, path)] = xs
-    Exit c <- command [] "rm" [ thumbnail , path ] 
-    pure ()
+updateDocumentPath:: Int -> T.Text -> PapierM ()
+updateDocumentPath = updateDocumentById #document_pdf
+
+updateDocumentThumbnail :: Int -> T.Text -> PapierM ()
+updateDocumentThumbnail = updateDocumentById #document_thumbnail
+
+updateDocumentById :: (MonadSelda m, SqlType a) => Selector Document a -> Int -> a -> m ()
+updateDocumentById sel pk val = update_ documents
+  (is #document_id (toId pk)) $ \doc -> doc `with` [sel := literal val] 
+
+deleteDocumentById :: Int -> PapierM (Maybe Document)
+deleteDocumentById pk = do
+  doc <- getDocumentById pk
+  deleteFrom_ documents $ is #document_id (toId pk) 
+  pure doc
 
 getDocuments :: Maybe (Int, Int) -> PapierM [Document]
-getDocuments limit = queryDatabase $ \conn ->
-  case limit of 
-    Nothing    -> query_ conn "SELECT * FROM documents"
-    Just (s,o) -> query conn "SELECT * FROM documents LIMIT ?,?" (s,o)
+getDocuments = mapM fillInFiles <=< \case 
+  Nothing            -> query (select documents)
+  Just (offset,size) -> query (limit offset size $ select documents)
 
 getDocumentById :: Int -> PapierM (Maybe Document)
-getDocumentById i = queryDatabase $ \conn -> do
-  xs <- query conn "SELECT * FROM documents WHERE id = ?" (Only i)
-  if null xs then pure Nothing
-  else pure . pure . head $ xs
+getDocumentById pk = fillIn =<< query queryDoc where
+  queryDoc = do
+    docs <- select documents
+    restrict (docs ! #document_id .== literal (toId pk))
+    pure docs 
+
+  fillIn []    = pure Nothing 
+  fillIn (d:_) = pure <$> fillInFiles d
+
+
+
+fillInFiles :: Document -> PapierM Document
+fillInFiles doc = liftIO $ do
+  pdf       <- T.decodeUtf8 . B64.encode <$> B.readFile (T.unpack $ document_pdf doc)
+  thumbnail <- T.decodeUtf8 . B64.encode <$> B.readFile (T.unpack $ document_thumbnail doc)
+  pure $ doc { document_pdf = pdf, document_thumbnail = thumbnail } 

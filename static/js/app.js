@@ -1,30 +1,28 @@
-let createCard = (obj) => { 
-  var card = document.createElement("div");
-  card.classList.add("card"); 
+const GLOBAL_NUM_CARDS_PER_LOAD = 1;
+var global_offset = 0;
+
+
+let createCard = obj => { 
+
+  let card = htmlToNode(`
+    <div  class="card">
+      <div class="card-image">
+        <figure class="image is-3by3">
+          <img src="data:image/png;base64,${obj.document_thumbnail}" 
+            alt="PLACEHOLDER">
+        </figure>
+      </div>
+
+      <div class="card-content">
+        <div class="content">
+          <h4 class="title is-4">${obj.document_name}</h4>
+          <p>${obj.document_content.substr(0,250)}</p>
+        </div>
+      </div>
+    </div>
+  `);
+
   
-  var cardImage = document.createElement("div");
-  cardImage.classList.add("card-image");
-  var figure = document.createElement("figure");
-  figure.classList.add("image", "is-3by4");
-  var img = document.createElement("img");
-  let thumb = (obj.document_thumbnail);
-  img.setAttribute("src", "data:image/png;base64," + thumb);
-  img.setAttribute("alt", "Placeholder image");
-  card.appendChild(cardImage).appendChild(figure).appendChild(img);
-
-
-  var cardContent = document.createElement("div");
-  cardContent.classList.add("card-content");
-  var content = document.createElement("div");
-  content.classList.add("content");
-  var title = document.createElement("h4");
-  title.classList.add("title", "is-4");
-  title.innerHTML = obj.document_name;
-  var desc = document.createElement("p");
-  desc.innerHTML = obj.document_content.substr(0,250);
-  card.appendChild(cardContent).appendChild(content).appendChild(title); 
-  content.appendChild(desc);
-
   card.addEventListener("click", e => {
     let url = new URL(window.location.href);
     window.location.href = url.origin + "?id=" + obj.document_id;
@@ -128,4 +126,11 @@ let createColumns = n => {
     col.classList.add("column");
     document.querySelector(".columns").appendChild(col); 
   });
+};
+
+
+let htmlToNode = html => {
+  let tmp = document.createElement("template");
+  tmp.innerHTML = html.trim();
+  return tmp.content.firstChild;
 };

@@ -14,6 +14,7 @@ import Data.List (isSuffixOf, inits)
 import Data.Time.Clock
 import Safe (headMay)
 import Control.Concurrent
+import Database.Selda (def)
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -27,31 +28,34 @@ consume =
     Nothing  -> pure ()
     Just pdf -> do
       content   <- convertToPGM >=> runTesseract $ pdf
-      thumbnail <- createThumbnail pdf
-      path      <- movePdf pdf
       date      <- liftIO getCurrentTime
-      insertDocument $ 
-        Document Nothing (takeFileName path)
-        content path thumbnail date 
 
-movePdf :: FilePath -> PapierM FilePath 
-movePdf pdf = do
+      pk <- insertDocument $ 
+        Document def def content def def date 
+      
+      thumbnail <- createThumbnail pk pdf
+      path      <- movePdf pk pdf
+
+      updateDocumentName pk $ T.pack $ takeFileName path
+      updateDocumentPath pk $ T.pack path
+      updateDocumentThumbnail pk $ T.pack thumbnail
+
+movePdf :: Int -> FilePath -> PapierM FilePath 
+movePdf pk pdf = do
   storageDir <- getStorageDir
-  num        <- show . (+1) <$> maxDocumentsId
   let
-    newName = takeBaseName pdf ++ num ++ takeExtension pdf
+    newName = takeBaseName pdf ++ show pk ++ takeExtension pdf
     newPath = storageDir </> newName 
   liftIO $ do
     Exit c <- command [] "mv" [pdf, newPath]
     pure newPath
     
-createThumbnail :: FilePath -> PapierM FilePath
-createThumbnail pdfPath = do
+createThumbnail :: Int -> FilePath -> PapierM FilePath
+createThumbnail pk pdfPath = do
   storageDir <- getStorageDir
   pdfimages  <- getPdfimages
-  num        <- show . (+1) <$> maxDocumentsId
   liftIO $ do 
-    let outName = "thumbnail" ++ num 
+    let outName = "thumbnail" ++ show pk
     Exit c <- command [ Cwd storageDir ] pdfimages 
       ["-f", "1", "-l", "1", "-png", pdfPath, outName ]
     pure $ storageDir </> (outName ++ "-000.png")    

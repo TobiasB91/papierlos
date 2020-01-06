@@ -36,6 +36,8 @@ executable papierlos
                     ,  bytestring
                     ,  base64-bytestring
                     ,  wai-middleware-static
+                    ,  selda
+                    ,  selda-sqlite
   --hs-source-dirs:
   default-language:    Haskell2010
 
@@ -59,4 +61,6 @@ library
                     ,  bytestring
                     ,  base64-bytestring
                     ,  wai-middleware-static
+                    ,  selda
+                    ,  selda-sqlite
   default-language:    Haskell2010
