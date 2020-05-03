@@ -49,6 +49,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let loadHome = () => {
   document.querySelector("nav.breadcrumb ul li").classList.add("is-active");
+  
+  let searchInput = document.getElementById("searchDocs");
+
+  searchInput.addEventListener("input", () => {
+    let searchTerm = searchInput.value;
+    let endPoint = searchTerm === "" ? "/documents" : "/documents/search/" + searchTerm;
+
+    fetch(endPoint).then(response => {
+        if (response.ok) return response.json(); else throw new Error(response.status);
+      }).then(json => { 
+        createColumns(4);
+        let columns = document.querySelector(".columns").querySelectorAll(".column");
+
+        [0,1,2,3].forEach(i => {
+          json.filter(el => json.indexOf(el) % 4 === i).forEach(el => { 
+            columns[i].appendChild(createCard(el));
+          });
+        });
+      }).catch(err => { console.log(err); });
+  });
+
 
   fetch("/documents").then(response => {
     if (response.ok) return response.json(); else throw new Error(response.status);

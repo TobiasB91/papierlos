@@ -21,7 +21,7 @@ runPapierM cf ac = withSQLite (database . general $ cf) $ runReaderT ac cf
 
 instance MonadSelda PapierM where
   type Backend PapierM = SQLite
-  withConnection act = (ReaderT $ \_ -> S get) >>= act
+  withConnection act = ReaderT (\_ -> S get) >>= act
 
 data Config = Config {
   programs :: ProgramsConfig ,
@@ -80,3 +80,5 @@ getDatabase = asks $ database . general :: PapierM String
 getTimeout = asks $ timeout . general :: PapierM Int
 getPrefix = asks $ prefix . general :: PapierM String
 getDpi = asks $ dpi . general :: PapierM Int
+
+data SearchAlgorithm = ContainsText

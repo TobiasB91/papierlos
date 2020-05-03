@@ -36,7 +36,7 @@ startServer cf = do
         runPapierM cf $ getDocuments $ Just (offset,size)
       json docs
 
-    get "documents/count" $ do 
+    get "/documents/count" $ do 
       c <- liftAndCatchIO  $ runPapierM cf countDocuments
       json c
 
@@ -46,7 +46,11 @@ startServer cf = do
         runPapierM cf (getDocumentById docId) 
       json jDoc 
 
-    get "/documents/search/:query" undefined
+    get "/documents/search/:query" $ do
+      txt  <- param "query" 
+      docs <- liftAndCatchIO $ 
+        runPapierM cf $ searchDocs txt ContainsText
+      json docs
 
     post "/tags/create" $ 
       params >>= liftIO . print >> redirect "/" 

@@ -59,10 +59,19 @@ getDocumentById pk = fillIn =<< query queryDoc where
   fillIn []    = pure Nothing 
   fillIn (d:_) = pure <$> fillInFiles d
 
-
-
 fillInFiles :: Document -> PapierM Document
 fillInFiles doc = liftIO $ do
   pdf       <- T.decodeUtf8 . B64.encode <$> B.readFile (T.unpack $ document_pdf doc)
   thumbnail <- T.decodeUtf8 . B64.encode <$> B.readFile (T.unpack $ document_thumbnail doc)
   pure $ doc { document_pdf = pdf, document_thumbnail = thumbnail } 
+
+searchDocs :: T.Text -> SearchAlgorithm -> PapierM [Document]
+searchDocs t = mapM fillInFiles <=< query . \case 
+  ContainsText -> cnts
+    where
+      cnts = do
+        docs <- select documents
+        restrict $ 
+          (docs ! #document_content) `like` text ("%" <> t <> "%") .||
+          (docs ! #document_name) `like` text ("%" <> t <> "%")
+        pure docs
