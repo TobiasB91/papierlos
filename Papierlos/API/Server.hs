@@ -1,12 +1,23 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Papierlos.API.Server where
 
 import Papierlos.Common.Types
 import Papierlos.Common.Database
+import Papierlos.OCR.Consume
 
-import Web.Scotty
+import Control.Monad
+import Control.Concurrent
 import Control.Monad.Reader
+import Data.Functor (void)
 import Data.Maybe
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as B
@@ -14,8 +25,61 @@ import Data.Aeson hiding (json)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL (fromStrict)
 import qualified Data.Text.Encoding as T
-import Network.Wai.Middleware.Static hiding (defaultOptions)
+import Network.Wai
+import Network.Wai.Handler.Warp
+import Network.Wai.Middleware.RequestLogger
+import Servant
+import WaiAppStatic.Types
+import WaiAppStatic.Storage.Filesystem
 
+
+
+type API = GETDocuments 
+  :<|> GETDocumentById
+  :<|> Raw
+
+type GETDocuments = "documents" :> Get '[JSON] [Document] 
+type GETDocumentById = "documents" :> Capture "userid" Int :> Get '[JSON] Document
+
+api :: Proxy API
+api = Proxy
+
+application :: Config -> Application 
+application cf = serve api $ 
+  hoistServer api (runPapierM cf . (initialize >>)) appApi where
+    initialize = sequence 
+      [  createDocumentsTable  
+      ,  consume 
+      ]
+
+runServer :: Config -> IO () 
+runServer cf = do
+  print "starting server..."
+  forkIO $ do
+    runHandler $ runPapierM cf consume
+    threadDelay 1000000
+  run 3000 $ middleware . application $ cf 
+
+middleware :: Application -> Application
+middleware = logStdoutDev 
+
+appApi :: ServerT API PapierM
+appApi = getDocumentsApi
+  :<|> getDocumentByIdApi
+  :<|> static
+
+getDocumentByIdApi :: ServerT GETDocumentById PapierM
+getDocumentByIdApi uid = fromJust <$> getDocumentById uid 
+
+getDocumentsApi :: ServerT GETDocuments PapierM
+getDocumentsApi = getDocuments Nothing 
+
+static :: ServerT Raw PapierM
+static = serveDirectoryWith $ 
+  (defaultWebAppSettings "static/") 
+    { ssIndices = map unsafeToPiece ["index.html", "index.htm"] }
+
+{-
 startServer :: Config -> IO () 
 startServer cf = do
   runPapierM cf createDocumentsTable
@@ -54,3 +118,5 @@ startServer cf = do
 
     post "/tags/create" $ 
       params >>= liftIO . print >> redirect "/" 
+
+-}

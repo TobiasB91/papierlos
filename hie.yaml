@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./Papierlos/Main.hs"
+      component: "papierlos:exe:papierlos"
+
+    - path: "./"
+      component: "lib:papierlos"

@@ -16,8 +16,5 @@ main =
   parseConfig <$> T.readFile "/etc/papierlos.conf" >>= \case 
     Left err     -> hPutStrLn stderr err 
     Right config -> do 
-      forkIO $ forever $ do  
-        startConsume config 
-        threadDelay 1000000
-      startServer config
+      runServer config
       undefined

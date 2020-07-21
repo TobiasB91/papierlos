@@ -13,10 +13,11 @@ import qualified Data.ByteString.Base64 as B
 import Database.Selda
 import Database.Selda.SQLite
 import Database.Selda.Backend.Internal
+import Servant.Server (Handler)
 
-type PapierM = ReaderT Config (SeldaT SQLite IO)
+type PapierM = ReaderT Config (SeldaT SQLite Handler)
 
-runPapierM :: Config -> PapierM a -> IO a 
+runPapierM :: Config -> PapierM a -> Handler a 
 runPapierM cf ac = withSQLite (database . general $ cf) $ runReaderT ac cf 
 
 instance MonadSelda PapierM where

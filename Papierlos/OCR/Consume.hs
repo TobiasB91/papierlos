@@ -15,11 +15,12 @@ import Data.Time.Clock
 import Safe (headMay)
 import Control.Concurrent
 import Database.Selda (def)
+import Servant.Server (Handler)
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-startConsume :: Config -> IO ()
+startConsume :: Config -> Handler ()
 startConsume = flip runPapierM consume
 
 consume :: PapierM () 
