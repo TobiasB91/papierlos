@@ -12,16 +12,22 @@ import System.Exit
 import System.FilePath
 import Data.List (isSuffixOf, inits) 
 import Data.Time.Clock
+import Data.Time.Format.ISO8601
 import Safe (headMay)
 import Control.Concurrent
-import Database.Selda (def)
+import Database.Selda (def, ID)
 import Servant.Server (Handler)
-
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 startConsume :: Config -> Handler ()
 startConsume = flip runPapierM consume
+
+serveFile :: T.Text -> PapierM T.Text
+serveFile path = liftIO $ T.decodeUtf8 . B64.encode <$> B.readFile (T.unpack path)
 
 consume :: PapierM () 
 consume =
@@ -30,36 +36,35 @@ consume =
     Just pdf -> do
       content   <- convertToPGM >=> runTesseract $ pdf
       date      <- liftIO getCurrentTime
-
-      pk <- insertDocument $ 
-        Document def def content def def date 
       
-      thumbnail <- createThumbnail pk pdf
-      path      <- movePdf pk pdf
+      thumbnailFileId <- createThumbnail date pdf
+      documentFileId  <- movePdf date pdf
 
-      updateDocumentName pk $ T.pack $ takeFileName path
-      updateDocumentPath pk $ T.pack path
-      updateDocumentThumbnail pk $ T.pack thumbnail
+      void $ insertDocument $ 
+        Document def (T.pack $ "document-" ++ iso8601Show date) 
+          content documentFileId thumbnailFileId date 
 
-movePdf :: Int -> FilePath -> PapierM FilePath 
-movePdf pk pdf = do
+movePdf :: ISO8601 t => t -> FilePath -> PapierM (ID DocumentFile) 
+movePdf date pdf = do
   storageDir <- getStorageDir
   let
-    newName = takeBaseName pdf ++ show pk ++ takeExtension pdf
+    newName = takeBaseName pdf ++ iso8601Show date ++ takeExtension pdf
     newPath = storageDir </> newName 
   liftIO $ do
     Exit c <- command [] "mv" [pdf, newPath]
-    pure newPath
+    pure c -- TODO catch or do something in case of failure 
+  insertDocumentFile $ DocumentFile def $ T.pack newPath
     
-createThumbnail :: Int -> FilePath -> PapierM FilePath
-createThumbnail pk pdfPath = do
+createThumbnail :: ISO8601 t => t -> FilePath -> PapierM (ID ThumbnailFile)
+createThumbnail date pdfPath = do
   storageDir <- getStorageDir
   pdfimages  <- getPdfimages
-  liftIO $ do 
-    let outName = "thumbnail" ++ show pk
+  path <- liftIO $ do 
+    let outName = "thumbnail" ++ iso8601Show date
     Exit c <- command [ Cwd storageDir ] pdfimages 
       ["-f", "1", "-l", "1", "-png", pdfPath, outName ]
     pure $ storageDir </> (outName ++ "-000.png")    
+  insertThumbnailFile $ ThumbnailFile def $ T.pack path
 
 getPdfPath :: PapierM (Maybe FilePath)
 getPdfPath = do 

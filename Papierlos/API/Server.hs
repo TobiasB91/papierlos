@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -28,28 +29,33 @@ import qualified Data.Text.Encoding as T
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Middleware.RequestLogger
+import Safe
 import Servant
 import WaiAppStatic.Types
 import WaiAppStatic.Storage.Filesystem
 
-
+api :: Proxy API
+api = Proxy
 
 type API = GETDocuments 
   :<|> GETDocumentById
+  :<|> GETThumbnailById
+  :<|> GETDocumentFileById
   :<|> Raw
 
 type GETDocuments = "documents" :> Get '[JSON] [Document] 
-type GETDocumentById = "documents" :> Capture "userid" Int :> Get '[JSON] Document
-
-api :: Proxy API
-api = Proxy
+type GETDocumentById = "documents" :> Capture "userid" Int :> Get '[JSON] (Maybe Document)
+type GETThumbnailById = "documents" :> "thumbnail" :> Capture "userid" Int :> Get '[JSON] (Maybe T.Text)
+type GETDocumentFileById = "documents" :> "file" :> Capture "userid" Int :> Get '[JSON] (Maybe T.Text)
 
 application :: Config -> Application 
 application cf = serve api $ 
   hoistServer api (runPapierM cf . (initialize >>)) appApi where
     initialize = sequence 
       [  createDocumentsTable  
-      ,  consume 
+      ,  createDocumentFilesTable
+      ,  createThumbnailFilesTable
+      -- ,  consume 
       ]
 
 runServer :: Config -> IO () 
@@ -66,10 +72,18 @@ middleware = logStdoutDev
 appApi :: ServerT API PapierM
 appApi = getDocumentsApi
   :<|> getDocumentByIdApi
+  :<|> getThumbnailByIdApi
+  :<|> getDocumentFileByIdApi
   :<|> static
 
 getDocumentByIdApi :: ServerT GETDocumentById PapierM
-getDocumentByIdApi uid = fromJust <$> getDocumentById uid 
+getDocumentByIdApi = getDocumentById
+
+getThumbnailByIdApi :: ServerT GETThumbnailById PapierM
+getThumbnailByIdApi = mapM serveFile <=< getThumbnailById 
+
+getDocumentFileByIdApi :: ServerT GETDocumentFileById PapierM
+getDocumentFileByIdApi = mapM serveFile <=< getDocumentFileById 
 
 getDocumentsApi :: ServerT GETDocuments PapierM
 getDocumentsApi = getDocuments Nothing 

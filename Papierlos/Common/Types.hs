@@ -54,14 +54,33 @@ data Document = Document {
   document_id :: ID Document ,
   document_name :: T.Text ,
   document_content :: T.Text ,
-  document_pdf :: T.Text ,
-  document_thumbnail :: T.Text ,
+  document_pdf :: ID DocumentFile ,
+  document_thumbnail :: ID ThumbnailFile ,
   document_date :: UTCTime 
 } deriving (Generic, Show) 
 
+data ThumbnailFile = ThumbnailFile {
+  thumbnailFile_id :: ID ThumbnailFile ,
+  thumbnailFile_path :: T.Text
+} deriving (Generic, Show)
+
+data DocumentFile = DocumentFile {
+  documentFile_id :: ID DocumentFile ,
+  documentFile_path :: T.Text
+} deriving (Generic, Show)
+
 instance ToJSON (ID Document) where
   toJSON = toJSON . fromId
+
+instance ToJSON (ID ThumbnailFile) where
+  toJSON = toJSON . fromId
+
+instance ToJSON (ID DocumentFile) where
+  toJSON = toJSON . fromId
   
+instance SqlRow ThumbnailFile
+instance SqlRow DocumentFile
+
 instance ToJSON Document
 instance SqlRow Document
 

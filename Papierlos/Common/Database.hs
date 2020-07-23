@@ -1,30 +1,78 @@
-{-# LANGUAGE OverloadedStrings, OverloadedLabels, LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, OverloadedLabels, LambdaCase, FlexibleContexts #-}
 module Papierlos.Common.Database where
 
 import Database.Selda
 import Papierlos.Common.Types
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import Data.Maybe (listToMaybe)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Base64 as B64
+import Safe
 
 import Control.Monad.Reader
 
 documents :: Table Document
 documents = table "documents" [ #document_id :- autoPrimary ]
 
+thumbnailFiles :: Table ThumbnailFile
+thumbnailFiles = table "thumbnailFiles" [ #thumbnailFile_id :- autoPrimary ]
+
+documentFiles :: Table DocumentFile
+documentFiles = table "documentFiles" [ #documentFile_id :- autoPrimary ]
+
 createDocumentsTable :: PapierM ()
 createDocumentsTable = tryCreateTable documents
 
-insertDocument :: Document -> PapierM Int 
-insertDocument = fmap fromId . insertWithPK documents . pure 
+createThumbnailFilesTable :: PapierM ()
+createThumbnailFilesTable = tryCreateTable thumbnailFiles
+
+createDocumentFilesTable :: PapierM ()
+createDocumentFilesTable = tryCreateTable documentFiles
+
+insertDocument :: Document -> PapierM (ID Document) 
+insertDocument = insertWithPK documents . pure 
+
+insertThumbnailFile :: ThumbnailFile -> PapierM (ID ThumbnailFile)
+insertThumbnailFile = insertWithPK thumbnailFiles . pure
+
+insertDocumentFile :: DocumentFile -> PapierM (ID DocumentFile)
+insertDocumentFile = insertWithPK documentFiles . pure
 
 countDocuments :: PapierM Int
 countDocuments = head <$> query countDocs where
   countDocs = aggregate $
     select documents >>= \docs -> pure $ count (docs ! #document_id)
 
+getDocuments :: Maybe (Int, Int) -> PapierM [Document]
+getDocuments = \case 
+  Nothing            -> query (select documents)
+  Just (offset,size) -> query (limit offset size $ select documents)
+
+getDocumentById :: Int -> PapierM (Maybe Document)
+getDocumentById pk = headMay <$> query queryDoc where
+  queryDoc = do
+    docs <- select documents
+    restrict (docs ! #document_id .== literal (toId pk))
+    pure docs 
+
+getThumbnailById :: Int -> PapierM (Maybe T.Text)
+getThumbnailById pk = headMay <$> query 
+  (fileQuery pk thumbnailFiles #thumbnailFile_id #document_thumbnail #thumbnailFile_path)   
+
+getDocumentFileById :: Int -> PapierM (Maybe T.Text)
+getDocumentFileById pk = headMay <$> query 
+  (fileQuery pk documentFiles #documentFile_id #document_pdf #documentFile_path)
+
+
+fileQuery pk fTable pKeyF fKeyF pF = do
+  fKey <- from fKeyF $ do 
+    docs <- select documents 
+    restrict (docs ! #document_id .== literal (toId pk))
+    pure docs
+  fRows <- select fTable 
+  restrict (fRows ! pKeyF .== fKey) 
+  pure $ fRows ! pF
+
+
+{-
 updateDocumentName :: Int -> T.Text -> PapierM ()
 updateDocumentName = updateDocumentById #document_name 
 
@@ -75,3 +123,5 @@ searchDocs t = mapM fillInFiles <=< query . \case
           (docs ! #document_content) `like` text ("%" <> t <> "%") .||
           (docs ! #document_name) `like` text ("%" <> t <> "%")
         pure docs
+
+-}

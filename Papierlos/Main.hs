@@ -15,6 +15,4 @@ main :: IO ()
 main = 
   parseConfig <$> T.readFile "/etc/papierlos.conf" >>= \case 
     Left err     -> hPutStrLn stderr err 
-    Right config -> do 
-      runServer config
-      undefined
+    Right config -> runServer config
