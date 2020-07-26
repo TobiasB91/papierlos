@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings, OverloadedLabels, LambdaCase, FlexibleContexts #-}
-module Papierlos.Common.Database where
+module Papierlos.Common.Database 
+  ( module Papierlos.Common.Database 
+  , fromId 
+  , toId
+  ) where
 
 import Database.Selda
 import Papierlos.Common.Types
@@ -18,6 +22,21 @@ thumbnailFiles = table "thumbnailFiles" [ #thumbnailFile_id :- autoPrimary ]
 documentFiles :: Table DocumentFile
 documentFiles = table "documentFiles" [ #documentFile_id :- autoPrimary ]
 
+tags :: Table Tag
+tags = table "tags" [ #tag_id :- autoPrimary , #tag_name :- unique ]
+
+docToTags :: Table DocToTag
+docToTags = table "docToTags" [ (#dtt_document_id :+ #dtt_tag_id) :- primary ] 
+
+initializeDB :: PapierM ()
+initializeDB = sequence_ 
+  [ createDocumentsTable
+  , createDocumentFilesTable
+  , createThumbnailFilesTable
+  , createTagsTable
+  , createDocToTagsTable
+  ]
+
 createDocumentsTable :: PapierM ()
 createDocumentsTable = tryCreateTable documents
 
@@ -26,6 +45,15 @@ createThumbnailFilesTable = tryCreateTable thumbnailFiles
 
 createDocumentFilesTable :: PapierM ()
 createDocumentFilesTable = tryCreateTable documentFiles
+
+createTagsTable :: PapierM ()
+createTagsTable = tryCreateTable tags
+
+createDocToTagsTable :: PapierM ()
+createDocToTagsTable = tryCreateTable docToTags
+
+allDocuments :: Query s (Row s Document)
+allDocuments = select documents
 
 insertDocument :: Document -> PapierM (ID Document) 
 insertDocument = insertWithPK documents . pure 
@@ -36,20 +64,46 @@ insertThumbnailFile = insertWithPK thumbnailFiles . pure
 insertDocumentFile :: DocumentFile -> PapierM (ID DocumentFile)
 insertDocumentFile = insertWithPK documentFiles . pure
 
+insertTag :: Tag -> PapierM (ID Tag)
+insertTag t@(Tag tId tName tColor) = do
+  tryInsert tags [t]
+  res <- query $ do
+    t' <- select tags
+    restrict $ t' ! #tag_name .== literal tName
+    pure t'
+  pure . tag_id . head $ res 
+
 countDocuments :: PapierM Int
 countDocuments = head <$> query countDocs where
   countDocs = aggregate $
     select documents >>= \docs -> pure $ count (docs ! #document_id)
 
 getDocuments :: Maybe (Int, Int) -> PapierM [Document]
-getDocuments = \case 
-  Nothing            -> query (select documents)
-  Just (offset,size) -> query (limit offset size $ select documents)
+getDocuments = query . \case 
+  Nothing            -> allDocuments 
+  Just (offset,size) -> limit offset size allDocuments
+
+getTags :: PapierM [Tag]
+getTags = query $ select tags
+
+addTagToDocument :: ID Document -> ID Tag -> PapierM Int
+addTagToDocument docId = insert docToTags . pure . DocToTag docId
+
+getDocumentsByTag :: T.Text -> PapierM [Document]
+getDocumentsByTag tName = query $ do
+  docs <- select documents
+  tags <- select tags
+  dtts <- select docToTags
+  restrict $ 
+    docs ! #document_id .== dtts ! #dtt_document_id .&&
+    tags ! #tag_id .== dtts ! #dtt_tag_id .&&
+    tags ! #tag_name .== literal tName
+  pure docs
 
 getDocumentById :: Int -> PapierM (Maybe Document)
 getDocumentById pk = headMay <$> query queryDoc where
   queryDoc = do
-    docs <- select documents
+    docs <- allDocuments
     restrict (docs ! #document_id .== literal (toId pk))
     pure docs 
 
@@ -64,7 +118,7 @@ getDocumentFileById pk = headMay <$> query
 
 fileQuery pk fTable pKeyF fKeyF pF = do
   fKey <- from fKeyF $ do 
-    docs <- select documents 
+    docs <- allDocuments
     restrict (docs ! #document_id .== literal (toId pk))
     pure docs
   fRows <- select fTable 

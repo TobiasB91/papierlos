@@ -41,22 +41,24 @@ type API = GETDocuments
   :<|> GETDocumentById
   :<|> GETThumbnailById
   :<|> GETDocumentFileById
+  :<|> POSTDocumentAddTag
+  :<|> GETDocumentsByTag
+  :<|> GETTags
+  :<|> POSTCreateTag
   :<|> Raw
 
 type GETDocuments = "documents" :> Get '[JSON] [Document] 
-type GETDocumentById = "documents" :> Capture "userid" Int :> Get '[JSON] (Maybe Document)
-type GETThumbnailById = "documents" :> "thumbnail" :> Capture "userid" Int :> Get '[JSON] (Maybe T.Text)
-type GETDocumentFileById = "documents" :> "file" :> Capture "userid" Int :> Get '[JSON] (Maybe T.Text)
+type GETDocumentById = "documents" :> Capture "docId" Int :> Get '[JSON] (Maybe Document)
+type GETThumbnailById = "documents" :> "thumbnail" :> Capture "docId" Int :> Get '[JSON] (Maybe T.Text)
+type GETDocumentFileById = "documents" :> "file" :> Capture "docId" Int :> Get '[JSON] (Maybe T.Text)
+type POSTDocumentAddTag = "documents" :> "addtag" :> Capture "docId" Int :> ReqBody '[JSON] ClientTag :> Post '[JSON] Int
+type GETDocumentsByTag = "documents" :> "tags" :> Capture "tagName" T.Text :> Get '[JSON] [Document]
+type GETTags = "tags" :> Get '[JSON] [Tag]
+type POSTCreateTag = "tags" :> "create" :> ReqBody '[JSON] ClientTag :> Post '[JSON] Int
 
 application :: Config -> Application 
 application cf = serve api $ 
-  hoistServer api (runPapierM cf . (initialize >>)) appApi where
-    initialize = sequence 
-      [  createDocumentsTable  
-      ,  createDocumentFilesTable
-      ,  createThumbnailFilesTable
-      -- ,  consume 
-      ]
+  hoistServer api (runPapierM cf . (initializeDB >>)) appApi
 
 runServer :: Config -> IO () 
 runServer cf = do
@@ -74,7 +76,14 @@ appApi = getDocumentsApi
   :<|> getDocumentByIdApi
   :<|> getThumbnailByIdApi
   :<|> getDocumentFileByIdApi
+  :<|> addTagApi
+  :<|> getDocumentsByTagApi
+  :<|> getTagsApi
+  :<|> createTagApi
   :<|> static
+
+getDocumentsByTagApi :: ServerT GETDocumentsByTag PapierM
+getDocumentsByTagApi = getDocumentsByTag 
 
 getDocumentByIdApi :: ServerT GETDocumentById PapierM
 getDocumentByIdApi = getDocumentById
@@ -88,49 +97,16 @@ getDocumentFileByIdApi = mapM serveFile <=< getDocumentFileById
 getDocumentsApi :: ServerT GETDocuments PapierM
 getDocumentsApi = getDocuments Nothing 
 
+getTagsApi :: ServerT GETTags PapierM
+getTagsApi = getTags
+
+createTagApi :: ServerT POSTCreateTag PapierM
+createTagApi = fmap fromId . insertTag . toTag
+
+addTagApi :: ServerT POSTDocumentAddTag PapierM
+addTagApi docId = addTagToDocument (toId docId) <=< insertTag . toTag
+
 static :: ServerT Raw PapierM
 static = serveDirectoryWith $ 
   (defaultWebAppSettings "static/") 
     { ssIndices = map unsafeToPiece ["index.html", "index.htm"] }
-
-{-
-startServer :: Config -> IO () 
-startServer cf = do
-  runPapierM cf createDocumentsTable
-  scotty 3000 $ do
-    middleware (staticPolicy $ addBase "static")
-
-    get "/" $ file "./static/index.html" 
-
-    get "/documents" $ do
-      docs <- liftAndCatchIO $
-        runPapierM cf $ getDocuments Nothing
-      json docs
-
-    get "/documents/limit/:offset/:size" $ do
-      offset <- param "offset"
-      size   <- param "size"
-      docs <- liftAndCatchIO $
-        runPapierM cf $ getDocuments $ Just (offset,size)
-      json docs
-
-    get "/documents/count" $ do 
-      c <- liftAndCatchIO  $ runPapierM cf countDocuments
-      json c
-
-    get "/documents/:id" $ do
-      docId <- param "id"
-      jDoc  <- liftAndCatchIO $
-        runPapierM cf (getDocumentById docId) 
-      json jDoc 
-
-    get "/documents/search/:query" $ do
-      txt  <- param "query" 
-      docs <- liftAndCatchIO $ 
-        runPapierM cf $ searchDocs txt ContainsText
-      json docs
-
-    post "/tags/create" $ 
-      params >>= liftIO . print >> redirect "/" 
-
--}

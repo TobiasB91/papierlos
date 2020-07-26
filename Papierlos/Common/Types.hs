@@ -69,6 +69,25 @@ data DocumentFile = DocumentFile {
   documentFile_path :: T.Text
 } deriving (Generic, Show)
 
+data Tag = Tag {
+  tag_id :: ID Tag ,
+  tag_name :: T.Text ,
+  tag_color :: T.Text
+} deriving (Generic, Show)
+
+data ClientTag = ClientTag {
+  clientTagName :: T.Text ,
+  clientTagColor :: T.Text
+} deriving (Generic, Show)
+
+data DocToTag = DocToTag {
+  dtt_document_id :: ID Document ,
+  dtt_tag_id :: ID Tag
+} deriving (Generic, Show)
+
+instance ToJSON (ID Tag) where
+  toJSON = toJSON . fromId
+
 instance ToJSON (ID Document) where
   toJSON = toJSON . fromId
 
@@ -79,10 +98,21 @@ instance ToJSON (ID DocumentFile) where
   toJSON = toJSON . fromId
   
 instance SqlRow ThumbnailFile
+
 instance SqlRow DocumentFile
+
+instance SqlRow Tag
+instance ToJSON Tag
+
+instance FromJSON ClientTag 
+
+instance SqlRow DocToTag
 
 instance ToJSON Document
 instance SqlRow Document
+
+toTag :: ClientTag -> Tag
+toTag (ClientTag name color) = Tag def name color
 
 getTesseract = asks $ tesseract . programs :: PapierM String
 getPdfimages = asks $ pdfimages . programs :: PapierM String
