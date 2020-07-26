@@ -89,9 +89,21 @@ getTags = query $ select tags
 addTagToDocument :: ID Document -> ID Tag -> PapierM Int
 addTagToDocument docId = insert docToTags . pure . DocToTag docId
 
+getTagsForDocument :: Int -> PapierM [Tag]
+getTagsForDocument dId = query $ do
+  docs <- allDocuments
+  tags <- select tags
+  dtts <- select docToTags
+  restrict $ 
+    docs ! #document_id .== literal (toId dId) .&&
+    docs ! #document_id .== dtts ! #dtt_document_id .&&
+    tags ! #tag_id .== dtts ! #dtt_tag_id
+  pure tags
+
+
 getDocumentsByTag :: T.Text -> PapierM [Document]
 getDocumentsByTag tName = query $ do
-  docs <- select documents
+  docs <- allDocuments 
   tags <- select tags
   dtts <- select docToTags
   restrict $ 

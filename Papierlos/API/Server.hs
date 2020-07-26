@@ -44,6 +44,7 @@ type API = GETDocuments
   :<|> POSTDocumentAddTag
   :<|> GETDocumentsByTag
   :<|> GETTags
+  :<|> GETTagsForDocument
   :<|> POSTCreateTag
   :<|> Raw
 
@@ -54,6 +55,7 @@ type GETDocumentFileById = "documents" :> "file" :> Capture "docId" Int :> Get '
 type POSTDocumentAddTag = "documents" :> "addtag" :> Capture "docId" Int :> ReqBody '[JSON] ClientTag :> Post '[JSON] Int
 type GETDocumentsByTag = "documents" :> "tags" :> Capture "tagName" T.Text :> Get '[JSON] [Document]
 type GETTags = "tags" :> Get '[JSON] [Tag]
+type GETTagsForDocument = "documents" :> Capture "docId" Int :> "tags" :> Get '[JSON] [Tag]
 type POSTCreateTag = "tags" :> "create" :> ReqBody '[JSON] ClientTag :> Post '[JSON] Int
 
 application :: Config -> Application 
@@ -79,8 +81,12 @@ appApi = getDocumentsApi
   :<|> addTagApi
   :<|> getDocumentsByTagApi
   :<|> getTagsApi
+  :<|> getTagsForDocumentApi
   :<|> createTagApi
   :<|> static
+
+getTagsForDocumentApi :: ServerT GETTagsForDocument PapierM
+getTagsForDocumentApi = getTagsForDocument
 
 getDocumentsByTagApi :: ServerT GETDocumentsByTag PapierM
 getDocumentsByTagApi = getDocumentsByTag 
